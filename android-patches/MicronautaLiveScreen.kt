@@ -22,6 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
+private val LiveBlue=Color(0xFF1769AA)
+private val LiveNavy=Color(0xFF123B60)
+private val LiveInk=Color(0xFF1D2B38)
+private val LiveMuted=Color(0xFF718096)
+
 @Composable
 fun MicronautaLiveScreen(padding:PaddingValues,search:String,onSearch:(String)->Unit,favorites:MutableList<String>) {
     var conf by remember { mutableStateOf(MicronautaApi.ServiceConfig.all.first().conf) }
@@ -57,7 +62,12 @@ fun MicronautaLiveScreen(padding:PaddingValues,search:String,onSearch:(String)->
     }
 
     Column(Modifier.fillMaxSize().padding(padding)) {
-        Header("Servicios", "Recorridos, paradas y horarios de Micronauta")
+        Column(Modifier.fillMaxWidth().background(LiveNavy).padding(horizontal=20.dp, vertical=16.dp)) {
+            Text("PEHUENCHE", color=Color.White, fontWeight=FontWeight.ExtraBold, fontSize=18.sp)
+            Spacer(Modifier.height(10.dp))
+            Text("Servicios", color=Color.White, fontWeight=FontWeight.Bold, fontSize=23.sp)
+            Text("Recorridos, paradas y horarios de Micronauta", color=Color(0xFFD3E4F2), fontSize=12.sp)
+        }
         Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal=12.dp, vertical=10.dp),horizontalArrangement=Arrangement.spacedBy(7.dp)) {
             MicronautaApi.ServiceConfig.all.forEach { c ->
                 FilterChip(selected=conf==c.conf,onClick={conf=c.conf},label={Text(c.title,fontSize=11.sp)})
@@ -70,23 +80,23 @@ fun MicronautaLiveScreen(padding:PaddingValues,search:String,onSearch:(String)->
         }
         OutlinedTextField(value=search,onValueChange=onSearch,modifier=Modifier.fillMaxWidth().padding(horizontal=14.dp),singleLine=true,
             placeholder={Text(if(route==null) "Buscar línea o recorrido" else "Filtrá desde la búsqueda")})
-        if(loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top=7.dp),color=Blue)
+        if(loading) LinearProgressIndicator(Modifier.fillMaxWidth().padding(top=7.dp),color=LiveBlue)
         error?.let { Text(it,Modifier.fillMaxWidth().padding(14.dp).background(Color(0xFFFFEEE8),RoundedCornerShape(10.dp)).padding(12.dp),color=Color(0xFF8B3D20),fontSize=12.sp) }
 
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)) {
             if(route==null) {
                 val visible=lines.filter { (it.name+" "+it.routes.joinToString(" "){r->r.name}).contains(search,true) }
-                if(!loading && visible.isEmpty() && error==null) Text("No hay líneas para mostrar en este servicio.",color=Muted)
+                if(!loading && visible.isEmpty() && error==null) Text("No hay líneas para mostrar en este servicio.",color=LiveMuted)
                 visible.forEach { item ->
                     Card(Modifier.fillMaxWidth(),shape=RoundedCornerShape(14.dp),colors=CardDefaults.cardColors(containerColor=Color.White)) {
                         Column(Modifier.padding(13.dp)) {
                             Row(verticalAlignment=Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
-                                    Text(item.name,color=Ink,fontWeight=FontWeight.Bold,fontSize=14.sp)
-                                    Text("${item.routes.size} recorridos",color=Muted,fontSize=11.sp)
+                                    Text(item.name,color=LiveInk,fontWeight=FontWeight.Bold,fontSize=14.sp)
+                                    Text("${item.routes.size} recorridos",color=LiveMuted,fontSize=11.sp)
                                 }
                                 IconButton(onClick={if(item.name in favorites)favorites.remove(item.name) else favorites.add(item.name)}) {
-                                    Icon(if(item.name in favorites)Icons.Default.Favorite else Icons.Default.FavoriteBorder,null,tint=Blue)
+                                    Icon(if(item.name in favorites)Icons.Default.Favorite else Icons.Default.FavoriteBorder,null,tint=LiveBlue)
                                 }
                             }
                             if(line?.id==item.id && line?.client==item.client) {
@@ -100,35 +110,35 @@ fun MicronautaLiveScreen(padding:PaddingValues,search:String,onSearch:(String)->
                     }
                 }
             } else {
-                Text(route?.name.orEmpty(),color=Ink,fontWeight=FontWeight.Bold,fontSize=17.sp)
-                Text("Paradas del recorrido",color=Muted,fontSize=12.sp)
+                Text(route?.name.orEmpty(),color=LiveInk,fontWeight=FontWeight.Bold,fontSize=17.sp)
+                Text("Paradas del recorrido",color=LiveMuted,fontSize=12.sp)
                 val stops=routeData?.stops.orEmpty()
-                if(routeData!=null && stops.isEmpty()) Text("Micronauta no devolvió paradas para este recorrido.",color=Muted,fontSize=12.sp)
+                if(routeData!=null && stops.isEmpty()) Text("Micronauta no devolvió paradas para este recorrido.",color=LiveMuted,fontSize=12.sp)
                 stops.forEachIndexed { index,s ->
                     Card(Modifier.fillMaxWidth().clickable { stop=s },shape=RoundedCornerShape(12.dp),
                         colors=CardDefaults.cardColors(containerColor=if(stop==s)Color(0xFFE6F1FA) else Color.White)) {
                         Row(Modifier.padding(12.dp),verticalAlignment=Alignment.CenterVertically) {
-                            Icon(Icons.Default.Place,null,tint=Blue); Spacer(Modifier.width(9.dp))
+                            Icon(Icons.Default.Place,null,tint=LiveBlue); Spacer(Modifier.width(9.dp))
                             Column(Modifier.weight(1f)) {
-                                Text("${index+1}. ${s.name}",color=Ink,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
-                                Text("${"%.5f".format(s.lat)}, ${"%.5f".format(s.lon)}",color=Muted,fontSize=10.sp)
+                                Text("${index+1}. ${s.name}",color=LiveInk,fontWeight=FontWeight.SemiBold,fontSize=13.sp)
+                                Text("${"%.5f".format(s.lat)}, ${"%.5f".format(s.lon)}",color=LiveMuted,fontSize=10.sp)
                             }
-                            Icon(Icons.Default.Schedule,null,tint=Blue)
+                            Icon(Icons.Default.Schedule,null,tint=LiveBlue)
                         }
                     }
                 }
-                routeData?.let { Text("Datos del recorrido: ${it.trace.size} puntos de trazado y ${it.stops.size} paradas.",color=Muted,fontSize=10.sp) }
+                routeData?.let { Text("Datos del recorrido: ${it.trace.size} puntos de trazado y ${it.stops.size} paradas.",color=LiveMuted,fontSize=10.sp) }
                 timetable?.let { t ->
                     Card(Modifier.fillMaxWidth(),colors=CardDefaults.cardColors(containerColor=Color.White)) {
                         Column(Modifier.padding(14.dp)) {
-                            Text("${stop?.name} · ${t.lineName}",color=Ink,fontWeight=FontWeight.Bold,fontSize=13.sp)
+                            Text("${stop?.name} · ${t.lineName}",color=LiveInk,fontWeight=FontWeight.Bold,fontSize=13.sp)
                             t.days.forEach { (day,times) ->
                                 if(times.isNotEmpty()) {
-                                    Spacer(Modifier.height(6.dp)); Text(day,color=Blue,fontWeight=FontWeight.Bold,fontSize=11.sp)
-                                    Text(times.joinToString(" · "),color=Ink,fontSize=12.sp)
+                                    Spacer(Modifier.height(6.dp)); Text(day,color=LiveBlue,fontWeight=FontWeight.Bold,fontSize=11.sp)
+                                    Text(times.joinToString(" · "),color=LiveInk,fontSize=12.sp)
                                 }
                             }
-                            if(t.days.values.all{it.isEmpty()}) Text("No hay horarios publicados para esta parada.",color=Muted,fontSize=12.sp)
+                            if(t.days.values.all{it.isEmpty()}) Text("No hay horarios publicados para esta parada.",color=LiveMuted,fontSize=12.sp)
                         }
                     }
                 }
