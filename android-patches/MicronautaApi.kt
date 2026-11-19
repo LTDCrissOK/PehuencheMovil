@@ -20,21 +20,59 @@ object MicronautaApi {
     data class Timetable(val lineName:String,val days:Map<String,List<String>>)
 
     private suspend fun post(cmd:String,params:Map<String,String>)=withContext(Dispatchers.IO) {
-        val c=(URL("$ENDPOINT?cmd=$cmd").openConnection() as HttpURLConnection).apply {
-            requestMethod="POST"; connectTimeout=15000; readTimeout=20000; doOutput=true
-            setRequestProperty("User-Agent","PehuencheMovil-Android/1.1")
-            setRequestProperty("Accept","application/json")
-            setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8")
-            setRequestProperty("Referer","https://micronauta4.dnsalias.net/usuario/urbano2.php")
+        val body=params.entries.joinToString("&") { (k,v)->"${URLEncoder.encode(k,"UTF-8")}=${URLEncoder.encode(v,"UTF-8")}" }
+        var lastError:Exception?=null
+
+        // Micronauta can respond slowly at peak hours. Retry transient timeouts,
+        // but keep every attempt bounded so the UI can report a useful error.
+        repeat(3) { attempt ->
+            try {
+                val c=(URL("$ENDPOINT?cmd=$cmd").openConnection() as HttpURLConnection).apply {
+                    requestMethod="POST"
+                    connectTimeout=25000
+                    readTimeout=45000
+                    doOutput=true
+                    setRequestProperty("User-Agent","Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 PehuencheMovil/1.2")
+                    setRequestProperty("Accept","application/json, text/plain, */*")
+                    setRequestProperty("Content-Type","application/x-www-form-urlencoded; charset=UTF-8")
+                    setRequestProperty("Origin","https://micronauta4.dnsalias.net")
+                    setRequestProperty("Referer","https://micronauta4.dnsalias.net/usuario/urbano2.php?conf=${params["conf"].orEmpty()}")
+                }
+                try {
+                    c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    val status=c.responseCode
+                    val stream=if(status in 200..299)c.inputStream else c.errorStream
+                    val response=stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
+                    if(status !in 200..299) {
+                        val detail=response.replace(Regex("\\s+")," ").take(180)
+                        throw java.io.IOException("Micronauta respondió HTTP $status${if(detail.isNotBlank()) ": $detail" else ""}")
+                    }
+                    return@withContext JSONObject(response)
+                } finally {
+                    c.disconnect()
+                }
+            } catch(e:kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch(e:Exception) {
+                lastError=e
+                val retryable=e is java.net.SocketTimeoutException ||
+                    e is java.net.ConnectException ||
+                    (e.message?.contains("HTTP 408")==true) ||
+                    (e.message?.contains("HTTP 502")==true) ||
+                    (e.message?.contains("HTTP 503")==true) ||
+                    (e.message?.contains("HTTP 504")==true)
+                if(!retryable || attempt==2) {
+                    val message=when {
+                        e is java.net.SocketTimeoutException -> "Micronauta tardó demasiado en responder. Se agotó el tiempo de espera tras 3 intentos."
+                        e.message?.contains("HTTP 408")==true -> "Micronauta devolvió HTTP 408 (tiempo de espera agotado) tras 3 intentos."
+                        else -> e.message ?: "No se pudo conectar con Micronauta."
+                    }
+                    throw java.io.IOException(message,e)
+                }
+                kotlinx.coroutines.delay(1200L * (attempt+1))
+            }
         }
-        try {
-            val body=params.entries.joinToString("&") { (k,v)->"${URLEncoder.encode(k,"UTF-8")}=${URLEncoder.encode(v,"UTF-8")}" }
-            c.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-            val stream=if(c.responseCode in 200..299)c.inputStream else c.errorStream
-            val text=stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-            if(c.responseCode !in 200..299) error("Micronauta respondió HTTP ${c.responseCode}")
-            JSONObject(text)
-        } finally { c.disconnect() }
+        throw java.io.IOException(lastError?.message ?: "No se pudo conectar con Micronauta.",lastError)
     }
 
     suspend fun lines(conf:String):List<Line> {
