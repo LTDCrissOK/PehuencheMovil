@@ -1,4 +1,3 @@
-
 name: Build Pehuenche Movil APK
 
 on:
@@ -9,38 +8,110 @@ on:
       - '.github/workflows/android.yml'
 
 jobs:
+  inspect-micronauta:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Inspect public Micronauta frontend assets
+        run: |
+          mkdir -p micronauta-inspection/assets
+          cat > /tmp/inspect.py <<'PY'
+          from urllib.request import Request, urlopen
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from pathlib import Path
+          import json, re
+
+          start = "https://micronauta.dnsalias.net/web/urbano/?conf=PehuencheNQN"
+          out = Path("micronauta-inspection")
+          headers = {"User-Agent": "Mozilla/5.0 (compatible; PehuencheMovilResearch/1.0)"}
+
+          def get(url):
+              req = Request(url, headers=headers)
+              with urlopen(req, timeout=30) as response:
+                  return response.geturl(), response.read(), dict(response.headers.items())
+
+          final_url, html, response_headers = get(start)
+          (out / "index.html").write_bytes(html)
+          (out / "page-response-headers.json").write_text(json.dumps(response_headers, indent=2), encoding="utf-8")
+
+          class Assets(HTMLParser):
+              def __init__(self):
+                  super().__init__()
+                  self.urls = []
+              def handle_starttag(self, tag, attrs):
+                  a = dict(attrs)
+                  if tag == "script" and a.get("src"):
+                      self.urls.append(a["src"])
+                  if tag == "link" and a.get("href"):
+                      rel = a.get("rel", "").lower()
+                      if "stylesheet" in rel or a.get("type") == "text/javascript":
+                          self.urls.append(a["href"])
+
+          parser = Assets()
+          parser.feed(html.decode("utf-8", "replace"))
+          found = []
+          for i, raw in enumerate(dict.fromkeys(parser.urls)):
+              url = urljoin(final_url, raw)
+              try:
+                  asset_url, data, hdrs = get(url)
+                  ext = Path(urlparse(asset_url).path).suffix or ".bin"
+                  name = f"asset_{i:03d}{ext}"
+                  (out / "assets" / name).write_bytes(data)
+                  found.append({"name": name, "requested_url": url, "final_url": asset_url,
+                                "content_type": hdrs.get("Content-Type", ""),
+                                "bytes": len(data)})
+              except Exception as e:
+                  found.append({"requested_url": url, "error": str(e)})
+          (out / "assets-manifest.json").write_text(json.dumps(found, indent=2), encoding="utf-8")
+
+          patterns = [
+              r'https?://[^\s\"\'<>]+',
+              r'(?i)(?:/api/|api/)[^\s\"\'<>]+',
+              r'(?i)(?:fetch|axios|XMLHttpRequest|\.ajax|WebSocket)[^\n]{0,220}'
+          ]
+          chunks = [html.decode("utf-8", "replace")]
+          for p in (out / "assets").glob("*"):
+              if p.is_file():
+                  chunks.append(p.read_text(encoding="utf-8", errors="replace"))
+          hits = []
+          for filename, chunk in [("html", chunks[0])] + [(p.name, p.read_text(encoding="utf-8", errors="replace")) for p in (out / "assets").glob("*") if p.is_file()]:
+              for pattern in patterns:
+                  for m in re.finditer(pattern, chunk):
+                      hits.append(f"{filename}: {m.group(0)[:500]}")
+          (out / "possible-endpoints.txt").write_text("\n".join(dict.fromkeys(hits)), encoding="utf-8")
+          print(f"Downloaded HTML and {len(found)} referenced JS/CSS assets from {final_url}")
+          PY
+          python /tmp/inspect.py
+      - name: Upload Micronauta inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: Micronauta-frontend-inspection
+          path: micronauta-inspection/
+          if-no-files-found: error
+
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Install Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
-
       - name: Extract project
-        run: |
-          unzip Pehuenche_Movil_Android_Nativo_v2.zip -d extracted
-
+        run: unzip Pehuenche_Movil_Android_Nativo_v2.zip -d extracted
       - name: Build APK
-        run: |
-          gradle -p extracted/PehuencheMovilAndroid assembleDebug
-
+        run: gradle -p extracted/PehuencheMovilAndroid assembleDebug
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Pehuenche-Movil-debug-apk
           path: extracted/PehuencheMovilAndroid/app/build/outputs/apk/debug/app-debug.apk
-
       - name: Upload extracted Android source
         uses: actions/upload-artifact@v4
         with:
