@@ -3,7 +3,7 @@ import re
 root=Path("extracted/PehuencheMovilAndroid/app/src/main/java/ar/com/pehuenche/movil")
 main=root/"MainActivity.kt"
 s=main.read_text(encoding="utf-8")
-pattern=r"@Composable\\s+private fun ServicesScreen\\([\\s\\S]*?(?=@Composable\\s+private fun ServiceCard)"
+pattern=r"@Composable\s+private fun ServicesScreen\([\s\S]*?(?=@Composable\s+private fun ServiceCard)"
 replacement="""@Composable
 private fun ServicesScreen(padding: PaddingValues, search: String, onSearch: (String) -> Unit, favorites: MutableList<String>) {
     MicronautaLiveScreen(padding, search, onSearch, favorites)
