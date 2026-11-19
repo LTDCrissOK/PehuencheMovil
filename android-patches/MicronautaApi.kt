@@ -56,7 +56,7 @@ object MicronautaApi {
             val p=b.optJSONObject(i)?:continue; val lat=p.optDouble("lat",Double.NaN); val lon=p.optDouble("lon",Double.NaN)
             if(!lat.isNaN()&&!lon.isNaN()) add(Stop(p.optString("parada_nombre","Parada"),p.optString("codigo"),p.optString("linea"),p.optString("cliente",client),p.optString("sentido","I"),p.optString("nombre"),lat,lon))
         } }
-        RouteData(trace,stops)
+        return RouteData(trace,stops)
     }
 
     suspend fun timetable(conf:String,s:Stop):Timetable {
@@ -69,6 +69,6 @@ object MicronautaApi {
                 else -> emptyList()
             }
         }
-        Timetable(o.optString("linea_nombre",s.lineName),days)
+        return Timetable(o.optString("linea_nombre",s.lineName),days)
     }
 }
