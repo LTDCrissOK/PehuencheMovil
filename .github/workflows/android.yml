@@ -1,0 +1,42 @@
+
+name: Build Pehuenche Movil APK
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'Pehuenche_Movil_Android_Nativo_v2.zip'
+      - '.github/workflows/android.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Extract project
+        run: |
+          unzip Pehuenche_Movil_Android_Nativo_v2.zip -d extracted
+
+      - name: Build APK
+        run: |
+          gradle -p extracted/PehuencheMovilAndroid assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Pehuenche-Movil-debug-apk
+          path: extracted/PehuencheMovilAndroid/app/build/outputs/apk/debug/app-debug.apk
