@@ -6,6 +6,7 @@ on:
     paths:
       - 'Pehuenche_Movil_Android_Nativo_v2.zip'
       - '.github/workflows/android.yml'
+      - 'android-patches/**'
 
 jobs:
   inspect-micronauta:
@@ -158,6 +159,8 @@ jobs:
           gradle-version: '8.9'
       - name: Extract project
         run: unzip Pehuenche_Movil_Android_Nativo_v2.zip -d extracted
+      - name: Apply native Micronauta integration
+        run: python android-patches/apply.py
       - name: Build APK
         run: gradle -p extracted/PehuencheMovilAndroid assembleDebug
       - name: Upload APK
