@@ -82,6 +82,59 @@ jobs:
           print(f"Downloaded HTML and {len(found)} referenced JS/CSS assets from {final_url}")
           PY
           python /tmp/inspect.py
+      - name: Inspect embedded transport systems
+        run: |
+          python - <<'PY'
+          from urllib.request import Request, urlopen
+          from html.parser import HTMLParser
+          from urllib.parse import urljoin, urlparse
+          from pathlib import Path
+          import json, re
+          root = Path("micronauta-inspection")
+          out = root / "embedded"
+          out.mkdir(parents=True, exist_ok=True)
+          pages = {
+            "provincial": "https://micronauta4.dnsalias.net/usuario/urbano2.php?conf=Provincial",
+            "centenario": "https://micronauta4.dnsalias.net/usuario/urbano2.php?conf=centenario",
+            "interurbanos": "https://micronauta4.dnsalias.net/usuario/urbano2.php?conf=nacional",
+            "cipolletti": "https://micronauta4.dnsalias.net/usuario/urbano2.php?conf=urbcipol",
+          }
+          headers={"User-Agent":"Mozilla/5.0 PehuencheMovilResearch/1.0"}
+          class Parser(HTMLParser):
+            def __init__(self): super().__init__(); self.assets=[]; self.iframes=[]
+            def handle_starttag(self,tag,attrs):
+              a=dict(attrs)
+              if tag=="script" and a.get("src"): self.assets.append(a["src"])
+              if tag=="link" and a.get("href") and "stylesheet" in a.get("rel","").lower(): self.assets.append(a["href"])
+              if tag=="iframe":
+                for k in ("src","data-src","data"): 
+                  if a.get(k): self.iframes.append(a[k])
+          records=[]; alltext=[]
+          def get(url):
+            req=Request(url,headers=headers)
+            with urlopen(req,timeout=35) as r: return r.geturl(),r.read(),r.headers.get("Content-Type","")
+          for name,url in pages.items():
+            try:
+              final,data,ct=get(url); (out/f"{name}.html").write_bytes(data)
+              p=Parser(); p.feed(data.decode("utf-8","replace")); alltext.append((f"{name}.html",data.decode("utf-8","replace")))
+              for i,src in enumerate(dict.fromkeys(p.assets)):
+                u=urljoin(final,src)
+                try:
+                  fu,b,typ=get(u); ext=Path(urlparse(fu).path).suffix or ".txt"; fn=f"{name}_{i:03d}{ext}"
+                  (out/fn).write_bytes(b); alltext.append((fn,b.decode("utf-8","replace")))
+                  records.append({"service":name,"url":u,"file":fn,"content_type":typ,"bytes":len(b)})
+                except Exception as e: records.append({"service":name,"url":u,"error":str(e)})
+              records.append({"service":name,"page":final,"bytes":len(data),"assets":len(p.assets),"nested_iframes":p.iframes})
+            except Exception as e: records.append({"service":name,"page":url,"error":str(e)})
+          (out/"manifest.json").write_text(json.dumps(records,indent=2),encoding="utf-8")
+          patterns=[r"(?i)(?:https?://[^\\s\\\"'<>]+)",r"(?i)(?:[\\w./-]+\\.php(?:\\?[^\\s\\\"'<>]*)?)",r"(?i)(?:fetch|XMLHttpRequest|\\.ajax|WebSocket)[^\\n]{0,260}"]
+          hits=[]
+          for fn,s in alltext:
+            for pat in patterns:
+              for m in re.finditer(pat,s): hits.append(f"{fn}: {m.group(0)[:600]}")
+          (out/"endpoint-candidates.txt").write_text("\\n".join(dict.fromkeys(hits)),encoding="utf-8")
+          print(f"Inspected {len(pages)} embedded transport pages; downloaded {sum(1 for x in records if x.get('file'))} assets")
+          PY
       - name: Upload Micronauta inspection
         uses: actions/upload-artifact@v4
         with:
